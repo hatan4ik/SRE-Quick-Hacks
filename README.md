@@ -1,4 +1,4 @@
-# Priority Software — SRE Lead Assessment Prep
+# SRE Lead Assessment Prep
 
 90-minute test: Terraform (1 MCQ + 7 open) · Docker (1 coding) · Kubernetes (9 MCQ + 2 open) · AWS (7 MCQ)
 
