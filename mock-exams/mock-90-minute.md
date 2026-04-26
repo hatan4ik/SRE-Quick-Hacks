@@ -1,6 +1,6 @@
 # Mock 90-Minute SRE/DevOps Assessment
 
-Set a 90-minute timer. Cover the answers, attempt each question, then reveal.
+Set a 90-minute timer. Answer everything before reading the answers. No notes.
 
 ---
 
@@ -19,7 +19,7 @@ D. Terraform will disable state locking
 
 **Answer: B**
 
-`count` indexes are positional. Inserting at index 0 shifts every subsequent index — Terraform sees `aws_iam_user.user[0]` as a different resource and may propose destroy/recreate of the wrong users. Use `for_each` with `toset()` so each user is keyed by name, not position.
+`count` indexes are positional. Inserting a user at index 0 shifts every subsequent index. Terraform sees `aws_iam_user.user[0]` as a different resource and may propose destroy/recreate of the wrong users. Use `for_each` with `toset()` — each user is keyed by name, not position.
 
 ```hcl
 resource "aws_iam_user" "user" {
@@ -85,7 +85,7 @@ Update `main.tf` to match the real resource until plan shows **"No changes."**
 
 **Step 4 — Commit** both config and updated state.
 
-**Terraform 1.5+ alternative — declarative import block:**
+**Terraform 1.5+ alternative:**
 ```hcl
 import {
   to = aws_s3_bucket.legacy
@@ -116,7 +116,7 @@ Or use `terraform state mv` for an immediate state-only rename:
 terraform state mv aws_security_group.old_name aws_security_group.web
 ```
 
-Run `terraform plan` after to confirm **"No changes."** The `moved` block is preferred — it is version-controlled and self-documenting.
+Then run `terraform plan` to confirm **"No changes."** The `moved` block is preferred — it is version-controlled and self-documenting.
 
 ---
 
@@ -159,12 +159,15 @@ What are the risks of using `ignore_changes` broadly?
 
 **Answer:**
 
+`ignore_changes` tells Terraform to never update a field after initial creation, even if the real value drifts from config.
+
+**Risks:**
 - Hides real security drift — e.g. someone widens a security group rule and Terraform never reverts it
 - Hides accidental manual changes that should be codified
-- Makes `terraform plan` misleading — shows "No changes" when real drift exists
+- Makes `terraform plan` misleading — "No changes" when real drift exists
 - `ignore_changes = all` effectively removes Terraform's ability to manage the resource
 
-**Correct use:** narrow, specific fields owned by an external system:
+**Correct use — narrow, specific fields owned by an external system:**
 ```hcl
 lifecycle {
   ignore_changes = [tags["last_modified_by"], desired_count]
@@ -217,7 +220,7 @@ PR opened
   → publish plan as PR artifact   (reviewers see exact changes)
 
 PR approved + merged
-  → terraform apply tfplan        (apply the reviewed plan, not a new one)
+  → terraform apply tfplan        (apply the reviewed plan, not a fresh one)
   → notify Slack / PagerDuty
   → tag state version in S3
 
@@ -239,7 +242,15 @@ You are given a Python API with:
 - Start command: `python -m app.main`
 - Health endpoint: `/healthz`
 
-Write a Dockerfile that uses a slim Python base image, installs dependencies efficiently, runs as a non-root user, exposes port 8080, uses exec-form CMD, avoids pip cache. Bonus: include a HEALTHCHECK.
+Write a Dockerfile that:
+- Uses a slim Python base image
+- Installs dependencies efficiently (layer cache)
+- Runs as a non-root user
+- Exposes port 8080
+- Uses exec-form CMD
+- Avoids pip cache
+
+Bonus: include a HEALTHCHECK.
 
 **Answer:**
 
@@ -253,7 +264,6 @@ WORKDIR /app
 
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Dependency layer cached until requirements.txt changes
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -268,12 +278,14 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 CMD ["python", "-m", "app.main"]
 ```
 
-**Key decisions:**
-- `COPY requirements.txt` before `COPY app` — deps layer cached until lockfile changes, not on every source edit
-- `--no-cache-dir` — pip writes no local cache into the image layer
-- `adduser --system` — no password, no home dir, no shell
+**Why each decision matters:**
+- `python:3.12-slim` — pinned version, no `latest`; slim removes most build tools
+- `COPY requirements.txt` before `COPY app` — deps layer cached until requirements change, not on every source edit
+- `--no-cache-dir` — pip does not write a local cache into the image layer
+- `adduser --system` — no password, no home dir, no shell; limits blast radius
 - `USER app` before `CMD` — process runs as non-root
 - Exec-form `CMD` — process receives SIGTERM directly, not via shell
+- `HEALTHCHECK` — Docker and orchestrators can detect an unhealthy container
 
 ---
 
@@ -292,7 +304,7 @@ D. `kubectl rollout undo`
 
 **Answer: B**
 
-`kubectl describe pod` shows scheduling events, resource constraints, affinity failures, taint mismatches, and PVC binding issues — all the reasons a Pod can't be placed. `kubectl logs` fails on a Pending pod (no container has started yet).
+`kubectl describe pod` shows scheduling events, probe failures, and image errors — the most information for a Pending pod. The `Events` section at the bottom shows exactly why the scheduler couldn't place it (insufficient resources, unsatisfied affinity, taint mismatch, PVC unbound).
 
 ---
 
@@ -307,7 +319,7 @@ D. Whether the node joins the cluster
 
 **Answer: B**
 
-Readiness probe failure → Pod removed from Service endpoints → no traffic sent to it. Pod stays running. Liveness probe failure → container restarted. These are the two most commonly confused probes.
+Readiness probe failure → Pod removed from Service endpoints → no traffic sent to it. Pod stays running, no restart. Liveness probe failure → container restart. This distinction is critical for rolling deployments.
 
 ---
 
@@ -322,7 +334,7 @@ D. `kubectl` is outdated
 
 **Answer: A**
 
-Service `spec.selector` must exactly match Pod `metadata.labels`. A single typo or missing label means zero endpoints. Verify with:
+Service `spec.selector` must exactly match Pod `metadata.labels`. A single typo or missing label = empty endpoints. Diagnose with:
 ```bash
 kubectl get endpoints <service> -n <ns>
 kubectl get pods -l app=<label> -n <ns>
@@ -356,7 +368,7 @@ D. The namespace is deleted
 
 **Answer: A**
 
-Exceeding memory limit → kernel OOMKills the container. Exceeding CPU limit → throttled (not killed). This distinction is critical — memory is a hard limit, CPU is a soft cap.
+Exceeding memory limit → kernel OOMKills the container. Exceeding CPU limit → throttled (not killed). This is a key difference: memory is a hard limit, CPU is a soft cap.
 
 ---
 
@@ -388,6 +400,14 @@ D. Route HTTP paths
 
 PodDisruptionBudget limits voluntary disruptions (node drain, cluster upgrade) — Kubernetes will not evict Pods if doing so would violate the budget. It does NOT protect against involuntary disruptions (node failure).
 
+```yaml
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: my-service
+```
+
 ---
 
 ### Kubernetes MCQ 8
@@ -401,7 +421,7 @@ D. Secret
 
 **Answer: B**
 
-Ingress defines HTTP(S) routing rules (path-based, host-based) to backend Services, implemented by an ingress controller (nginx, AWS ALB Controller, Traefik, etc.).
+Ingress defines HTTP(S) routing rules (path-based, host-based) to backend Services, implemented by an ingress controller (nginx, AWS ALB Controller, Traefik). A Service of type `LoadBalancer` creates an NLB on AWS, not an ALB.
 
 ---
 
@@ -433,7 +453,7 @@ kubectl rollout status deployment/<name> -n <ns>
 # 2. Compare old vs new ReplicaSets
 kubectl get replicasets -n <ns> -l app=<label>
 
-# 3. Describe the stuck Pod — read Events section at the bottom
+# 3. Describe the stuck Pod — read Events at the bottom
 kubectl describe pod <pod-name> -n <ns>
 
 # 4. Check app logs
@@ -449,9 +469,9 @@ kubectl get events --sort-by='.lastTimestamp' -n <ns>
 | Symptom in `describe` | Cause | Fix |
 |---|---|---|
 | `Readiness probe failed` | App not returning 200 on health path | Fix app or probe config |
-| `Back-off pulling image` | Wrong tag or missing imagePullSecret | Fix image ref |
-| `Insufficient cpu/memory` | No node has capacity | Scale cluster or lower requests |
-| `secret not found` | Missing Secret/ConfigMap mount | Create the missing resource |
+| `Back-off pulling image` | Wrong image tag or missing pull secret | Fix image ref or add `imagePullSecret` |
+| `Insufficient cpu/memory` | No node has capacity | Scale cluster or reduce requests |
+| `secret not found` | Missing Secret or ConfigMap | Create the missing resource |
 | `OOMKilled` | Memory limit too low | Increase memory limit |
 
 **If production is impacted — roll back first, debug second:**
@@ -472,15 +492,15 @@ Explain a safe production rollout strategy for a stateless service.
 strategy:
   type: RollingUpdate
   rollingUpdate:
-    maxUnavailable: 0   # never drop below desired replica count
-    maxSurge: 1         # create one extra Pod before removing old ones
+    maxUnavailable: 0   # never reduce below desired replica count
+    maxSurge: 1         # create one extra pod before removing old ones
 ```
 
 **Full checklist:**
 
 1. **Readiness probe** — new Pods only receive traffic after passing. Without it, rolling update sends traffic to unready Pods.
 
-2. **PodDisruptionBudget** — prevents node drains from taking too many Pods offline:
+2. **PodDisruptionBudget** — prevents voluntary disruptions from taking too many Pods offline:
 ```yaml
 spec:
   minAvailable: 2
@@ -501,7 +521,7 @@ kubectl rollout status deployment/<name> -n <ns> --watch
 kubectl rollout undo deployment/<name> -n <ns>
 ```
 
-6. **Canary (bonus)** — route 5–10% of traffic to the new version first via Argo Rollouts or weighted Ingress before full rollout.
+6. **Canary (bonus)** — route 5–10% of traffic to the new version first using Argo Rollouts or a weighted Ingress rule before full rollout.
 
 ---
 
@@ -523,8 +543,8 @@ D. NACLs replace route tables
 | | Security Group | NACL |
 |---|---|---|
 | State | Stateful — return traffic auto-allowed | Stateless — must allow both directions |
-| Applies to | ENI / instance level | Subnet level |
-| Rules | Allow only | Allow and Deny |
+| Applies to | EC2 instance / ENI | Subnet |
+| Rules | Allow only | Allow AND Deny |
 | Evaluation | All rules | Numbered order, lowest first |
 
 ---
@@ -589,7 +609,7 @@ D. Transfer acceleration only
 
 **Answer: A**
 
-S3 Versioning keeps every previous version of every object and uses delete markers instead of permanent deletes. You can restore any prior version at any time. Essential for production buckets storing critical data.
+S3 Versioning keeps all previous versions of every object and uses delete markers instead of permanent deletes. Enables recovery from overwrites and accidental deletes by restoring a previous version.
 
 ---
 
@@ -605,12 +625,11 @@ D. Only Route 53 TTL
 **Answer: A**
 
 Checklist:
-1. Health check path returns HTTP 200 (check ALB target group settings)
-2. Correct target port matches what the app listens on
-3. App is bound to `0.0.0.0`, not `127.0.0.1`
-4. Security group on the target allows inbound from the ALB security group on the target port
-5. App logs — is the health check request arriving and failing?
-6. `start-period` / thresholds realistic for app startup time
+1. Health check path returns HTTP 200 (check the exact path configured in the target group)
+2. App is listening on `0.0.0.0` on the target port (not `127.0.0.1`)
+3. Security group on the target allows inbound from the ALB security group on the target port
+4. Target group port matches the port the app listens on
+5. App logs for errors on the health check request
 
 ---
 
@@ -625,6 +644,4 @@ D. Region setting
 
 **Answer: A**
 
-Explicit Deny always overrides any Allow, regardless of which policy it comes from — identity policy, resource policy, or SCP. This is the foundational IAM evaluation rule. No exceptions.
-
-IAM evaluation order: Explicit Deny → SCP → Resource policy → Identity policy → Default Deny.
+Explicit Deny always overrides any Allow, regardless of which policy it comes from — identity policy, resource policy, or SCP. The full evaluation order is: Explicit Deny → SCP → Resource policy → Identity policy → Default Deny. No exceptions.
