@@ -21,6 +21,19 @@
 
 ---
 
+## Advanced (SRE Lead / FAANG Board Level)
+
+These files cover what separates a senior engineer from a lead. Read these if you have extra time or are preparing for the verbal interview component.
+
+| File | What's inside |
+| --- | --- |
+| [advanced/terraform_advanced.md](advanced/terraform_advanced.md) | State corruption recovery, 80-service module architecture, blast radius isolation, `precondition`/`postcondition`, secrets in state, drift detection |
+| [advanced/kubernetes_advanced.md](advanced/kubernetes_advanced.md) | Latency spike debugging, Pod security contexts + PSA, zero-downtime stateful upgrades, Karpenter vs CA, IRSA internals, EKS version upgrades, multi-tenancy |
+| [advanced/aws_advanced.md](advanced/aws_advanced.md) | DR design (RTO/RPO/patterns), cross-account IAM, VPC Peering vs TGW vs PrivateLink, Lambda timeout debugging, cost investigation, account hardening |
+| [advanced/sre_lead_principles.md](advanced/sre_lead_principles.md) | SLO/SLI/error budgets for checkout API, incident war story structure, alert fatigue, toil framework, on-call rotation design, blameless postmortem, questions to ask interviewers |
+
+---
+
 ## Last-Minute One-Liners
 
 **Terraform**
