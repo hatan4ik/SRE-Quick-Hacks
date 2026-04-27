@@ -1,0 +1,17 @@
+{
+  "name": "sre-quick-hacks-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal demo Node.js service for Docker build examples.",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "mkdir -p dist && cp server.js dist/server.js",
+    "start": "node dist/server.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "is-number": "^7.0.0"
+  }
+}
